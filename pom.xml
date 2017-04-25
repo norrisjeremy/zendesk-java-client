@@ -25,7 +25,7 @@
 
   <groupId>com.cloudbees.thirdparty</groupId>
   <artifactId>zendesk-java-client</artifactId>
-  <version>0.3.1-SNAPSHOT</version>
+  <version>0.5.5-SNAPSHOT</version>
 
   <name>zendesk-java-client</name>
   <description>Java client for the Zendesk API</description>
@@ -43,7 +43,26 @@
     <developer>
       <name>Stephen Connolly</name>
     </developer>
+    <developer>
+      <name>Johno Crawford</name>
+    </developer>
+    <developer>
+      <name>Matt Tucker</name>
+    </developer>
+    <developer>
+      <name>Yoann Dubreuil</name>
+    </developer>
   </developers>
+
+  <mailingLists>
+    <mailingList>
+      <name>Zendesk Java Client User List</name>
+      <subscribe>zendesk-java-client-users+subscribe@googlegroups.com</subscribe>
+      <unsubscribe>zendesk-java-client-users+unsubscribe@googlegroups.com</unsubscribe>
+      <post>zendesk-java-client-users@googlegroups.com</post>
+      <archive>https://groups.google.com/forum/#!forum/zendesk-java-client-users</archive>
+    </mailingList>
+  </mailingLists>
 
   <prerequisites>
     <maven>3.0.4</maven>
@@ -71,7 +90,7 @@
     <dependency>
       <groupId>com.ning</groupId>
       <artifactId>async-http-client</artifactId>
-      <version>1.9.15</version>
+      <version>1.9.31</version>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>

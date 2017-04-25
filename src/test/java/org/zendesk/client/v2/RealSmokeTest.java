@@ -1,10 +1,34 @@
 package org.zendesk.client.v2;
 
+import static org.hamcrest.CoreMatchers.anyOf;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeThat;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Properties;
+import java.util.UUID;
+
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.zendesk.client.v2.model.AgentRole;
 import org.zendesk.client.v2.model.Audit;
+import org.zendesk.client.v2.model.Brand;
+import org.zendesk.client.v2.model.Collaborator;
 import org.zendesk.client.v2.model.Comment;
 import org.zendesk.client.v2.model.Field;
 import org.zendesk.client.v2.model.Group;
@@ -13,30 +37,20 @@ import org.zendesk.client.v2.model.JobStatus;
 import org.zendesk.client.v2.model.Organization;
 import org.zendesk.client.v2.model.Request;
 import org.zendesk.client.v2.model.Status;
+import org.zendesk.client.v2.model.SuspendedTicket;
 import org.zendesk.client.v2.model.Ticket;
 import org.zendesk.client.v2.model.TicketForm;
 import org.zendesk.client.v2.model.User;
 import org.zendesk.client.v2.model.events.Event;
+import org.zendesk.client.v2.model.hc.Article;
+import org.zendesk.client.v2.model.hc.Category;
+import org.zendesk.client.v2.model.hc.Section;
+import org.zendesk.client.v2.model.hc.Subscription;
+import org.zendesk.client.v2.model.hc.Translation;
+import org.zendesk.client.v2.model.schedules.Holiday;
+import org.zendesk.client.v2.model.schedules.Interval;
+import org.zendesk.client.v2.model.schedules.Schedule;
 import org.zendesk.client.v2.model.targets.Target;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.HashMap;
-import java.util.Properties;
-import java.util.UUID;
-
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.CoreMatchers.nullValue;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeThat;
 
 /**
  * @author stephenc
@@ -102,6 +116,16 @@ public class RealSmokeTest {
     }
 
     @Test
+    public void getBrands() throws Exception {
+        createClientWithTokenOrPassword();
+        List<Brand> brands = instance.getBrands();
+        assertTrue(brands.iterator().hasNext());
+        for(Brand brand : brands){
+            assertThat(brand, notNullValue());
+        }
+    }
+
+    @Test
     public void getTicket() throws Exception {
         createClientWithTokenOrPassword();
         Ticket ticket = instance.getTicket(1);
@@ -116,7 +140,7 @@ public class RealSmokeTest {
         assertThat(ticketForm, notNullValue());
         assertTrue(ticketForm.isEndUserVisible());
     }
- 
+
     @Test
     public void getTicketForms() throws Exception {
         createClientWithTokenOrPassword();
@@ -126,14 +150,14 @@ public class RealSmokeTest {
         	assertThat(ticketForm, notNullValue());
         }
     }
-    
+
     @Test
     @Ignore("Needs specfic ticket form instance")
     public void getTicketFieldsOnForm() throws Exception {
         createClientWithTokenOrPassword();
         TicketForm ticketForm = instance.getTicketForm(27562);
         for(Integer id :ticketForm.getTicketFieldIds()){
-            Field f = instance.getTicketField(id);  
+            Field f = instance.getTicketField(id);
             assertNotNull(f);
         }
         assertThat(ticketForm, notNullValue());
@@ -153,8 +177,9 @@ public class RealSmokeTest {
             }
         }
     }
-    
+
     @Test
+    @Ignore("Needs test data setup correctly")
     public void getTicketsPagesRequests() throws Exception {
         createClientWithTokenOrPassword();
         int count = 0;
@@ -191,6 +216,18 @@ public class RealSmokeTest {
             count += 5;
         }
         assertThat(count, is(16L));
+    }
+
+    @Test
+    public void getTicketsIncrementally() throws Exception {
+        createClientWithTokenOrPassword();
+        int count = 0;
+        for (Ticket t : instance.getTicketsIncrementally(new Date(0L))) {
+            assertThat(t.getId(), notNullValue());
+            if (++count > 10) {
+                break;
+            }
+        }
     }
 
     @Test
@@ -242,6 +279,7 @@ public class RealSmokeTest {
         Ticket t = new Ticket(
                 new Ticket.Requester(config.getProperty("requester.name"), config.getProperty("requester.email")),
                 "This is a test", new Comment("Please ignore this ticket"));
+        t.setCollaborators(Arrays.asList(new Collaborator("Bob Example", "bob@example.org"), new Collaborator("Alice Example", "alice@example.org")));
         Ticket ticket = instance.createTicket(t);
         System.out.println(ticket.getId() + " -> " + ticket.getUrl());
         assertThat(ticket.getId(), notNullValue());
@@ -249,6 +287,10 @@ public class RealSmokeTest {
             Ticket t2 = instance.getTicket(ticket.getId());
             assertThat(t2, notNullValue());
             assertThat(t2.getId(), is(ticket.getId()));
+
+            List<User> ticketCollaborators = instance.getTicketCollaborators(ticket.getId());
+            assertThat("Collaborators", ticketCollaborators.size(), is(2));
+            assertThat("First Collaborator", ticketCollaborators.get(0).getEmail(), anyOf(is("alice@example.org"), is("bob@example.org")));
         } finally {
             instance.deleteTicket(ticket.getId());
         }
@@ -256,6 +298,7 @@ public class RealSmokeTest {
         assertThat(ticket.getRequester(), nullValue());
         assertThat(ticket.getRequesterId(), notNullValue());
         assertThat(ticket.getDescription(), is(t.getComment().getBody()));
+        assertThat("Collaborators", ticket.getCollaboratorIds().size(), is(2));
         assertThat(instance.getTicket(ticket.getId()), nullValue());
     }
 
@@ -322,6 +365,32 @@ public class RealSmokeTest {
     }
 
     @Test
+    @Ignore("Failing and I don't know why")
+    public void updateUserIdentity() throws Exception {
+        createClientWithTokenOrPassword();
+        User user = instance.getCurrentUser();
+
+        Identity identity = new Identity();
+        identity.setUserId(user.getId());
+        identity.setType("email");
+        identity.setValue("first@test.com");
+
+        Identity createdIdentity = instance.createUserIdentity(user, identity);
+        try {
+            assertThat(createdIdentity.getValue(), is("first@test.com"));
+
+            createdIdentity.setValue("second@test.com");
+            Identity updatedIdentity = instance.updateUserIdentity(user, createdIdentity);
+
+            assertThat(updatedIdentity.getValue(), is("second@test.com"));
+        } finally {
+            if (createdIdentity != null) {
+                instance.deleteUserIdentity(user, createdIdentity.getId());
+            }
+        }
+    }
+
+    @Test
     public void getUserRequests() throws Exception {
         createClientWithTokenOrPassword();
         User user = instance.getCurrentUser();
@@ -340,10 +409,58 @@ public class RealSmokeTest {
     }
 
     @Test
+    public void getUsers() throws Exception {
+        createClientWithTokenOrPassword();
+        int count = 0;
+        for (User u : instance.getUsers()) {
+            assertThat(u.getName(), notNullValue());
+            if (++count > 10) {
+                break;
+            }
+        }
+    }
+
+    @Test
+    public void getUsersIncrementally() throws Exception {
+        createClientWithTokenOrPassword();
+        int count = 0;
+        for (User u : instance.getUsersIncrementally(new Date(0L))) {
+            assertThat(u.getName(), notNullValue());
+            if (++count > 10) {
+                break;
+            }
+        }
+    }
+
+    @Test
+    public void getSuspendedTickets() throws Exception {
+        createClientWithTokenOrPassword();
+        int count = 0;
+        for (SuspendedTicket ticket : instance.getSuspendedTickets()) {
+            assertThat(ticket.getId(), notNullValue());
+            if (++count > 10) {
+                break;
+            }
+        }
+    }
+
+    @Test
     public void getOrganizations() throws Exception {
         createClientWithTokenOrPassword();
         int count = 0;
         for (Organization t : instance.getOrganizations()) {
+            assertThat(t.getName(), notNullValue());
+            if (++count > 10) {
+                break;
+            }
+        }
+    }
+
+    @Test
+    public void getOrganizationsIncrementally() throws Exception {
+        createClientWithTokenOrPassword();
+        int count = 0;
+        for (Organization t : instance.getOrganizationsIncrementally(new Date(0L))) {
             assertThat(t.getName(), notNullValue());
             if (++count > 10) {
                 break;
@@ -476,4 +593,252 @@ public class RealSmokeTest {
         }
     }
 
+    @Test
+    public void getArticles() throws Exception {
+        createClientWithTokenOrPassword();
+        int count = 0;
+        for (Article t : instance.getArticles()) {
+            assertThat(t.getTitle(), notNullValue());
+            if (++count > 40) {  // Check enough to pull 2 result pages
+                break;
+            }
+        }
+    }
+
+    @Test
+    public void getArticleSubscriptions() throws Exception {
+        createClientWithTokenOrPassword();
+        int articleCount = 0;
+        int subCount = 0;
+        for (Article t : instance.getArticles()) {
+            if (++articleCount > 50) {
+                break; // Stop if we're not finding articles with subscriptions
+            }
+            for (Subscription sub : instance.getArticleSubscriptions(t.getId())) {
+                assertThat(sub.getId(), notNullValue());
+                assertThat(sub.getUserId(), notNullValue());
+                assertThat(sub.getContentId(), notNullValue());
+                assertThat(sub.getCreatedAt(), notNullValue());
+                assertThat(sub.getUpdatedAt(), notNullValue());
+                if (++subCount > 10) {
+                    break;
+                }
+            }
+        }
+    }
+
+    @Test
+    public void getArticleTranslations() throws Exception {
+        createClientWithTokenOrPassword();
+        int articleCount = 0;
+        int translationCount = 0;  // Count total translations checked, not per-article
+        for (Article art : instance.getArticles()) {
+            assertNotNull(art.getId());
+            if (++articleCount > 10) {
+                break; // Do not overwhelm the getArticles API
+            }
+            for (Translation t : instance.getArticleTranslations(art.getId())) {
+                assertNotNull(t.getId());
+                assertNotNull(t.getTitle());
+                assertNotNull(t.getBody());
+                if (++translationCount > 3) {
+                    return;
+                }
+            }
+        }
+    }
+
+    @Test
+    public void getSectionTranslations() throws Exception {
+        createClientWithTokenOrPassword();
+        int sectionCount = 0;
+        int translationCount = 0;
+        for (Section sect : instance.getSections()) {
+            assertNotNull(sect.getId());
+            if (++sectionCount > 10) {
+                break;
+            }
+            for (Translation t : instance.getSectionTranslations(sect.getId())) {
+                assertNotNull(t.getId());
+                assertNotNull(t.getTitle());
+                assertNotNull(t.getBody());
+                if (++translationCount > 3) {
+                    return;
+                }
+            }
+        }
+    }
+
+    @Test
+    public void getCategoryTranslations() throws Exception {
+        createClientWithTokenOrPassword();
+        int categoryCount = 0;
+        int translationCount = 0;
+        for (Category cat : instance.getCategories()) {
+            assertNotNull(cat.getId());
+            if (++categoryCount > 10) {
+                break;
+            }
+            for (Translation t: instance.getCategoryTranslations(cat.getId())) {
+                assertNotNull(t.getId());
+                assertNotNull(t.getTitle());
+                assertNotNull(t.getBody());
+                if (++translationCount > 3) {
+                    return;
+                }
+            }
+        }
+    }
+
+    @Test
+    public void getArticlesIncrementally() throws Exception {
+        createClientWithTokenOrPassword();
+        final long ONE_WEEK = 7*24*60*60*1000;
+        int count = 0;
+        try {
+            for (Article t : instance.getArticlesIncrementally(new Date(new Date().getTime() - ONE_WEEK))) {
+                assertThat(t.getTitle(), notNullValue());
+                if (++count > 10) {
+                    break;
+                }
+            }
+        } catch (ZendeskResponseException zre) {
+            if (zre.getStatusCode() == 502) {
+                // Ignore, this is an API limitation
+                // A "Bad Gateway" response is returned if HelpCenter was not active at the given time
+            } else {
+                throw zre;
+            }
+        }
+    }
+
+    @Test
+    public void getCategories() throws Exception {
+        createClientWithTokenOrPassword();
+        int count = 0;
+        for (Category cat : instance.getCategories()) {
+            assertThat(cat.getName(), notNullValue());
+            if (++count > 10) {
+                break;
+            }
+        }
+    }
+
+    @Test
+    public void getSections() throws Exception {
+        createClientWithTokenOrPassword();
+        int count = 0;
+        for (Section s : instance.getSections()) {
+            assertThat(s.getName(), notNullValue());
+            assertThat(s.getCategoryId(), notNullValue());
+            if (++count > 10) {
+                break;
+            }
+        }
+    }
+
+    @Test
+    public void getSectionSubscriptions() throws Exception {
+        createClientWithTokenOrPassword();
+        int sectionCount = 0;
+        int count = 0;
+        for (Section s : instance.getSections()) {
+            if (++sectionCount > 50) {
+                break; // Stop if we're not finding sections with subscriptions
+            }
+            for (Subscription sub : instance.getSectionSubscriptions(s.getId())) {
+                assertThat(sub.getId(), notNullValue());
+                assertThat(sub.getUserId(), notNullValue());
+                assertThat(sub.getContentId(), notNullValue());
+                assertThat(sub.getCreatedAt(), notNullValue());
+                assertThat(sub.getUpdatedAt(), notNullValue());
+                if (++count > 10) {
+                    break;
+                }
+            }
+        }
+    }
+
+    @Test
+    public void getSchedules() throws Exception {
+        createClientWithTokenOrPassword();
+        int count = 0;
+        for (Schedule t : instance.getSchedules()) {
+            assertThat(t.getId(), notNullValue());
+            assertThat(t.getName(), notNullValue());
+            assertThat(t.getCreatedAt(), notNullValue());
+            assertThat(t.getUpdatedAt(), notNullValue());
+            assertThat(t.getTimeZone(), notNullValue());
+            for (Interval i : t.getIntervals()) {
+                assertThat(i.getStartTime(), notNullValue());
+                assertThat(i.getEndTime(), notNullValue());
+            }
+            for (Holiday h : instance.getHolidaysForSchedule(t)) {
+                assertThat(h.getId(), notNullValue());
+                assertThat(h.getName(), notNullValue());
+                assertThat(h.getStartDate(), notNullValue());
+                assertThat(h.getEndDate(), notNullValue());
+            }
+            if (++count > 10) {
+                break;
+            }
+        }
+    }
+
+    @Test
+    public void getCustomAgentRoles() throws Exception {
+        createClientWithTokenOrPassword();
+        int count = 0;
+        for (AgentRole role : instance.getCustomAgentRoles()) {
+            assertThat(role.getId(), notNullValue());
+            assertThat(role.getName(), notNullValue());
+            assertThat(role.getCreatedAt(), notNullValue());
+            assertThat(role.getUpdatedAt(), notNullValue());
+            assertThat(role.getConfiguration(), notNullValue());
+            assertTrue(role.getConfiguration().containsKey("ticket_access"));
+            if (++count > 10) {
+                break;
+            }
+        }
+    }
+
+    @Test
+    public void createOrUpdateUser() throws Exception {
+        createClientWithTokenOrPassword();
+
+        String name = "testCreateOrUpdateUser";
+        String externalId = "testCreateOrUpdateUser";
+
+        // Clean up to avoid conflicts
+        for (User u: instance.lookupUserByExternalId(externalId)){
+            instance.deleteUser(u.getId());
+        }
+
+        String phoneAtCreation = "5555551234";
+        User user = new User(true, name);
+        user.setExternalId(externalId);
+        user.setPhone(phoneAtCreation);
+
+        User createResult = instance.createOrUpdateUser(user);
+        assertNotNull(createResult);
+        assertNotNull(createResult.getId());
+        assertEquals(name, createResult.getName());
+        assertEquals(externalId, createResult.getExternalId());
+        assertEquals(phoneAtCreation, createResult.getPhone());
+
+        String phoneAtUpdate = "5555551235";
+        User updateUser = new User(true, name);
+        updateUser.setId(createResult.getId());
+        updateUser.setExternalId(externalId);
+        updateUser.setPhone(phoneAtUpdate);
+
+        User updateResult = instance.createOrUpdateUser(updateUser);
+        assertNotNull(updateResult);
+        assertEquals(createResult.getId(), updateResult.getId());
+        assertEquals(name, updateResult.getName());
+        assertEquals(externalId, updateResult.getExternalId());
+        assertEquals(phoneAtUpdate, updateResult.getPhone());
+
+        instance.deleteUser(updateResult);
+    }
 }

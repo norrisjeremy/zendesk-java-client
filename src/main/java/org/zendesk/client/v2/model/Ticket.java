@@ -12,6 +12,9 @@ import java.util.List;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Ticket extends Request implements SearchResultEntity {
+
+    private static final long serialVersionUID = 1L;
+
     private String externalId;
     private Type type;
     private Priority priority;
@@ -20,6 +23,7 @@ public class Ticket extends Request implements SearchResultEntity {
     private Long assigneeId;
     private Long groupId;
     private List<Long> collaboratorIds;
+    private List<Collaborator> collaborators;
     private Long forumTopicId;
     private Long problemId;
     private boolean hasIncidents;
@@ -63,6 +67,15 @@ public class Ticket extends Request implements SearchResultEntity {
 
     public void setCollaboratorIds(List<Long> collaboratorIds) {
         this.collaboratorIds = collaboratorIds;
+    }
+
+    @JsonProperty("collaborators")
+    private List<Collaborator> getCollaborators() {
+        return collaborators;
+    }
+
+    public void setCollaborators(List<Collaborator> collaborators) {
+        this.collaborators = collaborators;
     }
 
     @JsonProperty("custom_fields")
